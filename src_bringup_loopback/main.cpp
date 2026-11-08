@@ -10,7 +10,6 @@ void setup() {
   Serial.begin(115200);
   pinMode(CAN_INT, INPUT);
 
-  // Change MCP_8MHZ to MCP_16MHZ if init fails (check the marking on X1)
   if (CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK)
     Serial.println("MCP2515 init OK");
   else {
