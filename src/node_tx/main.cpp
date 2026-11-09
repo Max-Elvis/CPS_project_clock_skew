@@ -16,6 +16,10 @@ const byte NUM_IDS = sizeof(IDS) / sizeof(IDS[0]);
 // Can shields have 8MHz clock
 #define CAN_CLOCK MCP_8MHZ
 
+#ifndef ATTACK_AT_S
+  #define ATTACK_AT_S 400UL        // seconds after boot of this node
+#endif
+
 MCP_CAN CAN0(CAN_CS);
 
 volatile bool tick = false;
@@ -55,23 +59,41 @@ void setup() {
 void loop() {
   static byte counter = 0;
   static byte blinkDiv = 0;
+  static bool announced = false;
 
   if (!tick) return;
   tick = false;
 
-  // Constant DLC (8), as in the paper
+  bool attack = millis() >= ATTACK_AT_S * 1000UL;
+  if (attack && !announced) {
+    announced = true;
+#if defined(ATTACK_SUSPEND) || defined(ATTACK_FABRICATE)
+    Serial.println("ATTACK ACTIVE");
+#endif
+  }
+
   byte data[8] = {counter, 0, 0, 0, 0, 0, 0, 0};
 
   for (byte i = 0; i < NUM_IDS; i++) {
+#ifdef ATTACK_SUSPEND
+    if (attack && IDS[i] == 0x11) continue;     // suspension: 0x11 goes silent, 0x13 keeps running
+#endif
     byte st = CAN0.sendMsgBuf(IDS[i], 0, 8, data);
     if (st != CAN_OK) {
       Serial.print("TX error, id=0x");
       Serial.println(IDS[i], HEX);
     }
   }
+
+#ifdef ATTACK_FABRICATE
+  if (attack) {                                  // fabrication: B injects the ID normally owned by A
+    byte fake[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    CAN0.sendMsgBuf(0x11, 0, 8, fake);
+  }
+#endif
   counter++;
 
-  if (++blinkDiv >= 20) {           // toggle LED about once per second
+  if (++blinkDiv >= 20) {
     blinkDiv = 0;
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
     if (missedTicks) {
