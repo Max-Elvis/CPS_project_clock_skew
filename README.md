@@ -6,4 +6,12 @@ The following hardware was used:
 - 3 MCP2515 Can-Shields
 - Breadboards and wires
 
-The programming was done in VS Code using the PlatformIO extension
+The programming was done in VS Code using the PlatformIO extension.
+
+To flash the firmware onto the boards, use i.e.
+
+```pio run -e attackSuspend -t upload```
+
+The "attackSuspend" refers to the environment within the *platformio.ini* file, where the target part should also be set. After flashing all the necessary firmware, run
+
+```python logger.py COMy capture.csv``` to capture the traffic on the specified port and use ```python analyze.py capture.csv``` to run the analysis.
